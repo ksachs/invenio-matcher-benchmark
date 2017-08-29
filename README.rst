@@ -69,3 +69,10 @@ After running all the files present in the folder `publisher_updates`, a final o
 
     F1 Score:  0.921165790731
 
+where:
+
+Precision = efficiency = TP / (TP + FP)
+
+Recall = purity = TP / (TP + FN)
+
+F1 Score is the harmonic mean of the two

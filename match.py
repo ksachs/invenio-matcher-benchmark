@@ -11,10 +11,12 @@ from invenio_matcher.api import match as _match
 from inspire_dojson.processors import overdo_marc_dict
 from inspirehep.modules.migrator.tasks.records import split_stream
 from inspirehep.utils.record import get_value
+from inspirehep.utils.record_getter import get_db_record
 from inspirehep.factory import create_app
 
-from config import get_exact_queries, get_fuzzy_queries, validator
+from config import get_true_records, get_exact_queries, get_fuzzy_queries, validator
 
+DRUCK = False
 
 def generate_doi_map():
     with open('test_matches_clean.txt', 'r') as fd:
@@ -66,7 +68,7 @@ def main(args):
     false_positives = 0
     false_negatives = 0
     true_negatives = 0
-    very_fuzzy = {}
+    very_fuzzy = {'E':0, 'M':0}
     multiple_exact = 0  # Keep track of cases where multiple records match a exact query
     doi_match_map = generate_doi_map()
     recid_match_map = generate_recid_map()
@@ -88,6 +90,7 @@ def main(args):
 
     app = create_app()
     with app.app_context():
+        app.config['DEBUG'] = False
         for filename in filenames:
             with open(filename, 'r') as fd:
                 for marcxml in split_stream(fd):
@@ -111,6 +114,17 @@ def main(args):
                     print 'Going to match DOIs: ', dois
                     print 'Going to match arXiv eprints: ', arxiv_eprints
 
+                    if DRUCK:
+                        authors = []
+                        if inspire_record.get('authors'):
+                            for a in inspire_record.get('authors'):
+                                if 'full_name' in a:
+                                    authors.append(a['full_name'])
+
+                        print 'Looking for:'
+                        print inspire_record.get('titles')
+                        print len(authors), authors[:2]
+
                     # Step 1 - apply exact matches
                     queries_ = get_exact_queries(inspire_record)
                     matched_exact_records = list(_match(
@@ -121,6 +135,7 @@ def main(args):
                     ))
 
                     if len(matched_exact_records) == 1:
+                        very_fuzzy['E'] += 1
                         matched_recid = matched_exact_records[0].record.get('control_number')
                         if is_good_match(doi_match_map, recid_match_map, dois, control_number, matched_recid):
                             true_positives += 1
@@ -136,6 +151,7 @@ def main(args):
                         # FIXME Treat multiple exact matches as fuzzy match?
                         false_positives += 1
                         multiple_exact += 1
+                        very_fuzzy['M'] += 1
                         if args.output:
                             write(marcxml, false_positives_dir + os.path.sep + str(total) + '.xml')
                             write(json.dumps(matched_exact_records[0].record), false_positives_dir + os.path.sep + str(total) + '_in.json')
@@ -184,7 +200,11 @@ def main(args):
                             print '-- False positive - check {0} file'.format(str(total) + '.xml')
                             write(marcxml, false_positives_dir + os.path.sep + str(total) + '.xml')
                             if len(matched_fuzzy_records) >= 1:
-                                write(json.dumps(matched_fuzzy_records[0].record), false_positives_dir + os.path.sep + str(total) + '_in.json')
+                                num = 0
+                                for mfr in matched_fuzzy_records[:3]:
+                                    write(json.dumps(mfr.record, sort_keys=True, indent=4, separators=(',', ': ')),
+                                        false_positives_dir + os.path.sep + str(total) + '.' + str(num) + '.in.json')
+                                    num += 1
                     else:
                         # No record matched, check if it was a true negative
                         if dois and (set(no_match_list) & set(dois) != set()):
@@ -199,13 +219,16 @@ def main(args):
                                     for doi in dois:
                                         if doi in doi_match_map:
                                             true_match.append(int(doi_match_map[doi]))
-                                if str(control_number) in recid_match_map:
+                                elif str(control_number) in recid_match_map:
                                     true_match.append(int(recid_match_map[str(control_number)]))
                                 else:
                                     print control_number, 'not in recid_match_map'
-#                                if len(set(true_match)) == 1:
-#                                FIXME: how can I retrive the true record??????????
-#                                    write(get_record(true_match[0]), false_negatives_dir + os.path.sep + str(total) + '_true.json')
+
+                                if len(set(true_match)) > 0:
+                                    for true_record in get_true_records(true_match[0]):
+                                        write(json.dumps(true_record, sort_keys=True, indent=4, separators=(',', ': ')),
+                                            false_negatives_dir + os.path.sep + str(total) + '.true.json')
+                                        break
 
 
                         print '\n'

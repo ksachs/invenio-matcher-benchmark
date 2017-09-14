@@ -1,6 +1,16 @@
-
+import re
+from inspirehep.modules.search.api import LiteratureSearch
 from inspirehep.utils.record import get_value
 from utils import xcheck_author, xcheck_author_var, xcheck_title
+
+
+def get_true_records(recid):
+    """ Search for recid and return records """
+
+    search = LiteratureSearch().query('match', control_number=recid)
+    for result in search.scan():
+        yield result.to_dict()
+
 
 def get_exact_queries(inspire_record):
     """ Queries using IDs for exact match """
@@ -61,16 +71,21 @@ def validator(record, result):
 
     xchecks = {
         xcheck_author_var: 1,
-        xcheck_title: 1
+        xcheck_title_var: 1
         }
     score = 0
     weight_sum = 0
+    message = ""
     for xcheck, weight in xchecks.items():
         this_score = xcheck(record, result)
+        message += '  %s: %s |' % (xcheck, this_score)
         if this_score != None:
             score += this_score * weight
             weight_sum += weight
     if weight_sum > 0:
         score = score / weight_sum
-
+    message = re.sub('<function ', '' ,message)
+    message = re.sub(r' at [^>]*>', '' ,message)
+    message += 'Total: %s ' % score
+#    print message
     return score > 0.5

@@ -1,6 +1,7 @@
 
 import re
 import json
+import math
 
 DRUCK = False
 
@@ -37,7 +38,6 @@ def xcheck_author_var(record, result):
     Are the first 2 authors in the matched record?
     No authors in either record -> ignore
     """
-    import math
     from inspire_json_merger.comparators import AuthorComparator
     score = None
     if not record.get('authors'):
@@ -163,3 +163,43 @@ def xcheck_title(record, result):
 
     return title_max_score
 
+def penalty_date(record, result):
+    """
+    Conflicting year? User earliest date.
+    Same year doesnt indicate same paper,
+    but different year indicates different paper.
+    I.e. return penalty but never agreement.
+    """
+    
+    #FIXME get year the same way as for texkey generation
+    record_year = 1999 # int(record.get(....))
+    result_year = 2000 # int(result.get(....))
+    
+    diff_year = abs(record_year - result_year)
+    if diff_year > 8:
+        score = 0.2
+    else:
+        score = None
+    return score
+ 
+def penalty_pages(record, result):
+    """
+    Conflicting number of pages? 
+    Same number of pages dont indicate same paper,
+    but different pages indicate different paper.
+    I.e. return penalty but never agreement.
+    """
+    
+    record_pages = record.get('number_of_pages')
+    result_pages = result.record.get('number_of_pages')
+    
+    if record_pages and result_pages and record_pages > 1 and result_pages > 1:
+        relation = abs(math.log(result_pages / float(record_pages)))
+        if DRUCK:
+            print 'Pages:', record_pages, result_pages, relation
+        if relation > 0.6: # e.g. 20/37
+            return 0.1
+        elif relation > 0.3 and abs(result_pages - record_pages) > 4 : # e.g. 50/68
+            return 0.3
+    return None
+    

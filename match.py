@@ -124,6 +124,7 @@ def main(args):
                         print 'Looking for:'
                         print inspire_record.get('titles')
                         print len(authors), authors[:2]
+                        print inspire_record.get('number_of_pages'), 'Pages'
 
                     # Step 1 - apply exact matches
                     queries_ = get_exact_queries(inspire_record)

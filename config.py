@@ -1,7 +1,7 @@
 import re
 from inspirehep.modules.search.api import LiteratureSearch
 from inspirehep.utils.record import get_value
-from utils import xcheck_author, xcheck_author_var, xcheck_title
+from utils import xcheck_author, xcheck_author_var, xcheck_title_var, penalty_pages
 
 
 def get_true_records(recid):
@@ -70,8 +70,9 @@ def validator(record, result):
     """Validate results to avoid false positives."""
 
     xchecks = {
-        xcheck_author_var: 1,
-        xcheck_title_var: 1
+        xcheck_author_var: 1.0,
+        xcheck_title_var: 1.0,
+        penalty_pages: 1.0
         }
     score = 0
     weight_sum = 0
